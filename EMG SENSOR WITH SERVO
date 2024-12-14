@@ -1,1 +1,147 @@
+Component used--
+* EMG SENSOR
+  TWO BATTERY +9 COM(0) -9V
+  SERVO
+  ARDUNIO UNO
+  Emg muscle sensor
 
+Connection--
+*Muscle sensor +Vs to Battery of +
+              -Vs to "" of -
+             GND to "" of GND COM(0)
+                SIG to Ardunio Uno A0
+                GND to "" GND
+PCA9685 - External 5v
+        - Connect servo 
+.............
+.........etc
+
+TEST EMG
+----------------
+int emgPin = A0;
+int emgValue = 0;
+
+void setup(){
+  Serial.begin(9600);
+}
+
+void loop(){
+  emgValue = analogRead(emgPin);
+  Serial.println(emgValue);
+  delay(100);
+}
+----------------------------------------
+TEST EMG WITH SERVO
+--
+#include <Servo.h>
+
+Servo myServo; // Create a Servo object
+ int emgPin = A0; // EMG signal pin
+ int emgValue = 0; // Adjust this based on your EMG sensor output
+ int servoPin = 9; // Servo motor signal pin
+
+void setup() {
+  myServo.attach(servoPin); // Attach the servo to the pin
+  //myServo.write(0); // Set the servo to its initial position
+  Serial.begin(9600); // For debugging
+}
+
+void loop() {
+  emgValue = analogRead(emgPin);
+  int servoPos = map(emgValue, 0 , 1023, 0 , 180);
+  myServo.write(servoPos);
+  Serial.println(emgValue);
+  delay(100); // Small delay for stability
+}
+-----------------------------------------------------------------------
+FULL CODE 5 SERVO USED - FOR SERVO EXTERNAL POWER SUPPLY - 5V WITH DRIVER
+---
+
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+#define SERVOMIN 170
+#define SERVOMAX 650
+
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+
+const int servoCount = 6; // Number of servos you have
+const int servoPins[] = {0, 1, 2, 3, 4, 5}; // Define the PCA9685 pins for your servos
+
+int defaultPositions[servoCount] = {0, 0, 0, 0, 0, 0}; // Array to store default positions for each servo
+int servoAngles[servoCount]; // Array to store current servo angles
+
+
+//============================
+const int emgpin = A0;
+int emgvalue = 0;
+
+//=============================
+
+void setup()
+{
+  Serial.begin(9600);
+  pwm.begin();
+  pwm.setPWMFreq(90);
+
+  // Initialize servo angles to default positions
+  for (int i = 0; i < servoCount; i++)
+  {
+    servoAngles[i] = defaultPositions[i];
+    pwm.setPWM(servoPins[i], 0, angleToPulse(servoAngles[i]));
+  }
+}
+
+void loop()
+{
+  emgvalue = analogRead(emgpin);
+  Serial.println(emgvalue);
+  delay(250);
+
+  if (emgvalue < 999)
+  {
+    Serial.println("Arm Close");
+    moveServo(0, 180);
+    moveServo(1, 180);
+    moveServo(2, 180);
+    moveServo(3, 180);
+    moveServo(4, 180);
+    moveServo(5, 180);
+  }
+
+  if (emgvalue > 1000)
+  {
+    Serial.println("Arm Open");
+    moveServo(0, 0);
+    moveServo(1, 0);
+    moveServo(2, 0);
+    moveServo(3, 0);
+    moveServo(4, 0);
+    moveServo(5, 0);
+  }
+}
+
+void moveServo(int servoIndex, int targetAngle)
+{
+  // Smoothly move the servo to the target angle
+  for (int i = servoAngles[servoIndex]; i != targetAngle; i += (targetAngle > i) ? 1 : -1)
+  {
+    servoAngles[servoIndex] = i;
+    pwm.setPWM(servoPins[servoIndex], 0, angleToPulse(i));
+    delay(1); // Adjust the delay for smoother motion
+  }
+}
+
+void setDefaultPositions()
+{
+  // Set all servos to their default positions
+  for (int i = 0; i < servoCount; i++)
+  {
+    moveServo(i, defaultPositions[i]);
+  }
+}
+
+int angleToPulse(int angle)
+{
+  // Convert angle to servo pulse length
+  return map(angle, 0, 180, SERVOMIN, SERVOMAX);
+}
