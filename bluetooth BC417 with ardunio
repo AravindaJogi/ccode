@@ -1,8 +1,13 @@
 APP FOR PHONE:-
 SERIAL BLUTOOTH CONTROLLER
+--------------------------------------------
+Connection:-
+5V - 5V uno
+GND - GND uno
+TX - 9 uno - Pin can changed
+RX - 8 uno - Pin can changed
 
-
-
+----------------------------------------------
 #include "Arduino.h"
 #include <SoftwareSerial.h>
 
