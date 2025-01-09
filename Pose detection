@@ -1,0 +1,125 @@
+Taking input from video file:-----------
+--------
+from ultralytics import YOLO
+import cv2
+import numpy as np
+import serial
+
+# Initialize serial communication
+try:
+    ser = serial.Serial("COM4", 9600)  # Replace "COM4" with your Arduino's port
+    print("Serial connection established.")
+except Exception as e:
+    print(f"Error establishing serial connection: {e}")
+    ser = None
+
+# Load YOLOv8 pose model
+model = YOLO('yolov8n-pose.pt')
+
+# Define action recognition function
+def classify_action(keypoints, prev_keypoints=None):
+    """
+    Classifies the action based on keypoints and their movement.
+    :param keypoints: Current keypoints array.
+    :param prev_keypoints: Previous keypoints array for motion comparison.
+    :return: Detected action as a string.
+    """
+    if len(keypoints) < 17:  # Ensure all keypoints are detected
+        return "Other"
+
+    # Extract key points
+    left_shoulder, right_shoulder = keypoints[5], keypoints[6]
+    left_hip, right_hip = keypoints[11], keypoints[12]
+    left_knee, right_knee = keypoints[13], keypoints[14]
+    left_ankle, right_ankle = keypoints[15], keypoints[16]
+
+    # Calculate body positions
+    hip_height = (left_hip[1] + right_hip[1]) / 2
+    knee_height = (left_knee[1] + right_knee[1]) / 2
+    ankle_height = (left_ankle[1] + right_ankle[1]) / 2
+    shoulder_height = (left_shoulder[1] + right_shoulder[1]) / 2
+
+    # Jump detection: Quick upward motion of the hips
+    if prev_keypoints is not None:
+        prev_hip_height = (prev_keypoints[11][1] + prev_keypoints[12][1]) / 2
+        upward_motion = prev_hip_height - hip_height > 30  # Threshold for upward motion
+    else:
+        upward_motion = False
+
+    # Thresholds
+    sitting_threshold = abs(hip_height - knee_height) < 30  # Hips and knees are close
+    standing_threshold = abs(hip_height - shoulder_height) > 50 and abs(hip_height - ankle_height) > 100
+    walk_threshold = abs(left_ankle[1] - right_ankle[1]) > 30  # Alternating leg movement
+
+    if upward_motion and hip_height < shoulder_height:
+        return "Jump"
+    elif sitting_threshold:
+        return "Sit"
+    elif standing_threshold and not walk_threshold:
+        return "Stand"
+    elif walk_threshold:
+        return "Walk"
+    elif hip_height < knee_height:
+        return "Fall"
+    else:
+        return "Other"
+
+# Load the video file
+video_path = "wd.mp4"  # Replace with your video file path
+cap = cv2.VideoCapture(video_path)
+
+if not cap.isOpened():
+    print("Error: Could not open the video file.")
+    exit()
+
+# Resize settings
+resize_width = 640  # Desired width
+resize_height = 360  # Desired height
+
+# Dictionary to store previous keypoints for each person
+prev_keypoints_dict = {}
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # Resize the frame
+    frame = cv2.resize(frame, (resize_width, resize_height))
+
+    # Perform inference
+    results = model(frame)
+
+    # Annotate frame with actions for each detected person
+    annotated_frame = results[0].plot()
+    if hasattr(results[0], "keypoints"):
+        keypoints_all = results[0].keypoints.xy.cpu().numpy()
+
+        for idx, keypoints in enumerate(keypoints_all):
+            action = classify_action(keypoints, prev_keypoints_dict.get(idx))
+            prev_keypoints_dict[idx] = keypoints  # Update previous keypoints for the person
+
+            # Send 'A' to Arduino if "Fall" is detected
+            if action == "Fall":
+                print(f"Fall detected for Person {idx + 1}")
+                if ser:  # Check if serial connection exists
+                    ser.write(bytearray('A', 'ascii'))
+
+            # Display action and person ID
+            x, y = int(keypoints[0][0]), int(keypoints[0][1])  # Use nose keypoint as reference for text position
+            cv2.putText(annotated_frame, f"Person {idx + 1}: {action}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        (0, 255, 0), 2)
+
+    # Display the resized frame
+    cv2.imshow('Pose + Action Detection', annotated_frame)
+
+    # Break loop on 'q' key press
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+if ser:
+    ser.close()  # Close serial port connection
+cv2.destroyAllWindows()
+
+--------------------------------------------------------------------------------------
