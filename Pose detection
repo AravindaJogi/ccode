@@ -1,3 +1,37 @@
+creation of model yolo:-----
+
+from ultralytics import YOLO
+import cv2
+
+# Load YOLOv8 pose model
+model = YOLO('yolov8n-pose.pt')  # Use 'yolov8s-pose.pt' for better accuracy
+
+# Open webcam
+cap = cv2.VideoCapture(0)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # Perform inference
+    results = model(frame)
+
+    # Visualize results on the frame
+    annotated_frame = results[0].plot()
+
+    # Display the frame
+    cv2.imshow('YOLOv8 Pose Detection', annotated_frame)
+
+    # Break loop on 'q' key press
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+-----------------------------------------------------------------------
+
 Taking input from video file:-----------
 --------
 from ultralytics import YOLO
@@ -143,3 +177,7 @@ void loop() {
   }
 }
 --------------------------------------------------------------------------------------
+
+
+
+
