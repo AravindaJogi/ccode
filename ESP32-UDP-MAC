@@ -1,0 +1,78 @@
+#include <WiFi.h>
+#include <WiFiUdp.h>
+
+const char* ssid = "---";
+const char* password = "---";
+
+const int ledPin = 2;
+
+// UDP settings
+const unsigned int udpPort = 12345;
+WiFiUDP udp;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW); // LED off initially
+
+  // Connect to Wi-Fi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to Wi-Fi");
+  Serial.print("ESP32 IP Address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("ESP32 MAC Address: ");
+  Serial.println(WiFi.macAddress());
+
+  // Start UDP listener
+  udp.begin(udpPort);
+  Serial.print("UDP server started on port ");
+  Serial.println(udpPort);
+}
+
+void loop() {
+  int packetSize = udp.parsePacket(); // udp received or not if there is data process
+  if (packetSize) {  // if data is present only
+    char packetBuffer[255];
+    int len = udp.read(packetBuffer, 255);
+    if (len > 0) {
+      packetBuffer[len] = 0; // Null-terminate 
+    }
+
+    Serial.print("Received packet: ");
+    Serial.println(packetBuffer);
+
+    // Extract MAC address and command
+    String packet = String(packetBuffer); //Converts the char array to a String
+    String targetMac = packet.substring(0, 17); // MAC is 17 chars
+    String command = packet.substring(18); // Command after space
+    command.trim(); // Remove leading/trailing whitespace
+
+    // Debug: Show the parsed command
+    Serial.print("Parsed command: [");
+    Serial.print(command);
+    Serial.println("]");
+
+    // Compare MAC and act on command
+    String myMac = WiFi.macAddress();
+    if (targetMac == myMac) {
+      Serial.println("MAC address matches!");
+      if (command == "LED_ON") {
+        digitalWrite(ledPin, HIGH);
+        Serial.println("LED ON");
+      } else if (command == "LED_OFF") {
+        digitalWrite(ledPin, LOW);
+        Serial.println("LED OFF");
+      } else {
+        Serial.println("Unknown command");
+      }
+    } else {
+      Serial.println("MAC address does not match");
+    }
+  }
+}
