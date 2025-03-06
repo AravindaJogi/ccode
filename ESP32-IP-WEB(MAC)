@@ -1,0 +1,69 @@
+#include <WiFi.h>
+
+const char* ssid = "---";
+const char* password = "---";
+
+const int ledPin = 2;
+
+// Create a Wi-Fi server on port 80
+WiFiServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW); // LED off initially
+
+  // Connect to Wi-Fi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to Wi-Fi");
+  Serial.print("ESP32 IP Address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("ESP32 MAC Address: ");
+  Serial.println(WiFi.macAddress());
+
+  // Start the server
+  server.begin();
+  Serial.println("Server started");
+}
+
+void loop() {
+  WiFiClient client = server.available(); // Check for incoming clients
+
+  if (client) {
+    Serial.println("New client connected");
+    String request = client.readStringUntil('\r'); // Read the HTTP request
+    client.flush();
+
+    // Control the LED based on the request
+    if (request.indexOf("GET /EC:64:C9:90:C8:D8ledon") != -1) {  //1- EC:64:C9:90:C8:D8      E4:65:B8:79:92:FC
+      digitalWrite(ledPin, HIGH); // Turn LED on
+      Serial.println("LED ON");
+    } else if (request.indexOf("GET /EC:64:C9:90:C8:D8ledoff") != -1) {
+      digitalWrite(ledPin, LOW); // Turn LED off
+      Serial.println("LED OFF");
+    }
+
+    // Send HTTP response with control links
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-type:text/html");
+    client.println();
+    client.println("<html><body>");
+    client.println("<h1>ESP32 LED Control</h1>");
+    client.println("<p><a href=\"/EC:64:C9:90:C8:D8ledon\">Turn LED ON</a></p>");
+    client.println("<p><a href=\"/EC:64:C9:90:C8:D8ledoff\">Turn LED OFF</a></p>");
+    client.print("MAC Address: ");
+    client.println(WiFi.macAddress());
+    client.println("</body></html>");
+    client.println();
+
+    delay(1);
+    client.stop(); // Close the connection
+    Serial.println("Client disconnected");
+  }
+}
